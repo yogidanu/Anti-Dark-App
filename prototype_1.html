@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Anti-Dark-Pattern App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET ─── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#080f0a;font-family:'DM Sans',system-ui,sans-serif}
+
+/* ─── TOKENS ─── */
+:root{
+  --teal:#1D9E75;--teal-lt:#E1F5EE;--teal-dk:#085041;--teal-md:#5DCAA5;
+  --dark:#0f1f1a;--white:#ffffff;--off:#f7f8f7;--slate:#4a5568;
+  --muted:#8a9a94;--border:#e2e8e4;--red:#E24B4A;--red-lt:#FCEBEB;
+  --amber:#BA7517;--amber-lt:#FAEEDA;
+}
+
+/* ─── DEVICE SHELL ─── */
+.wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(ellipse at 55% 40%,#172e22 0%,#040a06 80%)}
+.device{position:relative;width:390px;height:844px;border-radius:52px;
+        background:#000;
+        box-shadow:0 0 0 1px rgba(29,158,117,.3),0 40px 100px rgba(0,0,0,.9)}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);
+       width:120px;height:34px;background:#000;border-radius:0 0 20px 20px;z-index:1000}
+
+/* ─── VIEWPORT ─── */
+/* All screens live inside this. Positioned children. */
+.vp{position:absolute;top:0;left:0;right:0;bottom:0;border-radius:52px;overflow:hidden;background:var(--off)}
+
+/* ─── STATUS BAR ─── */
+/* Always on top, transparent so each screen's header shows through */
+.sb{position:absolute;top:0;left:0;right:0;height:50px;z-index:900;
+    display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 26px 10px;pointer-events:none}
+.sb-time{font-size:15px;font-weight:600;color:var(--dark)}
+.sb-icons{font-size:14px;color:var(--dark);letter-spacing:1px}
+.sb-dark .sb-time,.sb-dark .sb-icons{color:#7ecfb3}
+
+/* ─── BOTTOM NAV ─── */
+.nav{position:absolute;bottom:0;left:0;right:0;height:80px;z-index:900;
+     background:rgba(247,248,247,.97);backdrop-filter:blur(20px);
+     border-top:1px solid var(--border);border-radius:0 0 52px 52px;
+     display:none;align-items:flex-start;justify-content:space-around;padding-top:8px}
+.nav.on{display:flex}
+.nb{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;
+    align-items:center;gap:3px;padding:4px 20px;font-family:inherit}
+.nb-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+.nb-icon svg{width:26px;height:26px;fill:none;stroke:var(--muted);stroke-width:1.8;
+             stroke-linecap:round;stroke-linejoin:round}
+.nb-lbl{font-size:10px;font-weight:500;color:var(--muted)}
+.nb.act .nb-icon svg{stroke:var(--teal)}
+.nb.act .nb-lbl{color:var(--teal)}
+
+/* ─── SCREEN BASE ─── */
+/* Every screen is absolute, full-size, flex column */
+.sc{position:absolute;inset:0;background:var(--off);
+    display:flex;flex-direction:column;
+    transform:translateX(110%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+    will-change:transform;border-radius:52px;overflow:hidden;
+    pointer-events:none}
+.sc.show{transform:translateX(0);pointer-events:auto}
+.sc.behind{transform:translateX(-25%)}
+.sc.dark{background:var(--dark)}
+
+/* ─── SCREEN ZONES ─── */
+/* Header: fixed, never scrolls. Gets padding-top:50px to clear status bar */
+.hd{flex-shrink:0;background:var(--off)}
+.hd.dark{background:var(--dark)}
+/* Body: scrolls */
+.bd{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.bd::-webkit-scrollbar{display:none}
+/* Footer: fixed at bottom, never scrolls */
+.ft{flex-shrink:0;background:var(--off);padding:12px 24px 34px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)}
+
+/* ─── TYPOGRAPHY ─── */
+.lora{font-family:'Lora',Georgia,serif}
+.t-page{font-size:26px;font-weight:700;color:var(--dark);font-family:'Lora',Georgia,serif}
+.t-sub{font-size:13px;color:var(--muted);line-height:1.6}
+.t-label{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--teal)}
+.t-label.red{color:var(--red)}
+
+/* ─── COMPONENTS ─── */
+.btn{width:100%;padding:14px;border:none;border-radius:14px;font-size:15px;
+     font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn:active{opacity:.8}
+.btn-p{background:var(--teal);color:#fff}
+.btn-g{background:var(--white);color:var(--slate);border:1.5px solid var(--border)}
+.btn-sm{width:auto;padding:8px 14px;font-size:13px}
+
+.card{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
+.pill-t{background:var(--teal-lt);color:var(--teal)}
+.pill-a{background:var(--amber-lt);color:var(--amber)}
+.pill-r{background:var(--red-lt);color:var(--red)}
+
+.divider{height:1px;background:var(--border);margin:0}
+
+.row{display:flex;justify-content:space-between;align-items:center;
+     padding:12px 0;border-bottom:1px solid var(--border)}
+.row:last-child{border-bottom:none}
+
+.chk{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.chk-y{background:var(--teal-lt);color:var(--teal)}
+.chk-n{background:var(--red-lt);color:var(--red)}
+
+.back-btn{width:36px;height:36px;border-radius:50%;background:var(--white);
+          border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+          cursor:pointer;font-size:20px;color:var(--dark);flex-shrink:0;line-height:1}
+.top-bar{display:flex;align-items:center;gap:12px;padding:54px 20px 12px}
+
+/* ─── OB DOTS ─── */
+.dots{display:flex;gap:6px;justify-content:center;margin-bottom:22px}
+.dot{height:6px;border-radius:3px;background:var(--border);transition:all .3s}
+.dot.on{width:20px;background:var(--teal)}
+.dot:not(.on){width:6px}
+
+/* ─── CHOICE BUTTONS ─── */
+.choice{width:100%;padding:14px 16px;margin-bottom:8px;
+        border:1.5px solid var(--border);border-radius:14px;
+        background:var(--white);color:var(--dark);
+        font-size:14px;font-weight:500;font-family:inherit;text-align:left;cursor:pointer}
+.choice.sel{border-color:var(--teal);background:var(--teal-lt);color:var(--teal-dk)}
+
+/* ─── TIME TABS ─── */
+.ttabs{display:flex;padding:4px;background:#e8e8e8;border-radius:12px;margin:0 20px 14px}
+.ttab{flex:1;padding:7px;text-align:center;font-size:12px;font-weight:500;
+      color:var(--muted);border:none;background:none;border-radius:9px;cursor:pointer;font-family:inherit}
+.ttab.on{background:var(--white);color:var(--dark);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+/* ─── BARS ─── */
+.bars{display:flex;align-items:flex-end;gap:6px;height:100px;margin:0 20px 4px}
+.bc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px}
+.bar{width:100%;border-radius:4px 4px 0 0;flex-shrink:0}
+.bl{font-size:9px;color:var(--muted);text-align:center}
+.bl.ov{color:#A32D2D}
+
+/* ─── STATS GRID ─── */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 20px 14px}
+.sbox{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:11px 13px}
+.sv{font-size:20px;font-weight:700;color:var(--dark)}
+.sl{font-size:11px;color:var(--muted);margin-top:1px}
+
+/* ─── BIG NUMBER ─── */
+.bign{font-size:64px;font-weight:700;color:var(--dark);line-height:1;
+      font-family:'Lora',Georgia,serif;letter-spacing:-2px}
+.prog{height:8px;background:#e8e8e8;border-radius:4px;overflow:hidden;margin:8px 0 4px}
+.prog-u{height:100%;background:#B5D4F4;float:left}
+.prog-o{height:100%;background:#F09595;float:left}
+
+/* ─── WEEK ROWS ─── */
+.wr{display:flex;justify-content:space-between;align-items:center;
+    padding:9px 20px;border-bottom:1px solid var(--border)}
+.wr:last-child{border-bottom:none}
+.wr.bad{background:#fff9f9}
+
+/* ─── LIMIT SLIDER ─── */
+.lim-n{font-size:54px;font-weight:700;color:var(--teal);line-height:1;
+       font-family:'Lora',Georgia,serif;text-align:center}
+.qp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 20px 14px}
+.qb{padding:9px 4px;border:1.5px solid var(--border);border-radius:10px;
+    background:var(--white);color:var(--slate);font-size:12px;
+    font-weight:500;cursor:pointer;text-align:center;font-family:inherit}
+.qb.on{border-color:var(--teal);background:var(--teal-lt);color:var(--teal)}
+input[type=range]{width:calc(100% - 40px);margin:8px 20px 0;display:block;accent-color:var(--teal)}
+
+/* ─── DRUM PICKER ─── */
+.drum-wrap{position:relative;width:56px;height:112px;overflow:hidden;border-radius:10px;flex-shrink:0}
+.drum-fade-top{position:absolute;top:0;left:0;right:0;height:36px;
+               background:linear-gradient(var(--white),transparent);z-index:3;pointer-events:none}
+.drum-fade-bot{position:absolute;bottom:0;left:0;right:0;height:36px;
+               background:linear-gradient(transparent,var(--white));z-index:3;pointer-events:none}
+.drum-hl{position:absolute;top:50%;left:4px;right:4px;height:36px;transform:translateY(-50%);
+         background:var(--teal-lt);border-radius:8px;z-index:2;pointer-events:none}
+.drum-inner{position:absolute;top:0;left:0;right:0;z-index:4;cursor:ns-resize;touch-action:none}
+.drum-item{height:36px;display:flex;align-items:center;justify-content:center;
+           font-size:20px;font-weight:500;color:var(--muted);user-select:none}
+.drum-item.sel{color:var(--teal);font-weight:700;font-size:22px}
+
+/* ─── AMPM ─── */
+.ampm-btn{padding:8px 10px;border-radius:8px;font-size:13px;font-weight:600;
+          cursor:pointer;font-family:inherit;border:1.5px solid var(--border);
+          background:var(--white);color:var(--muted)}
+.ampm-btn.on{border-color:var(--teal);background:var(--teal-lt);color:var(--teal)}
+
+/* ─── PROTO BADGE ─── */
+.badge{position:fixed;top:16px;left:50%;transform:translateX(-50%);
+       background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);
+       backdrop-filter:blur(10px);color:var(--teal-md);font-size:11px;font-weight:700;
+       padding:5px 16px;border-radius:20px;letter-spacing:.06em;z-index:9999;white-space:nowrap;
+       pointer-events:none}
+
+/* ─── AVATAR ─── */
+.av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div class="badge">INTERACTIVE PROTOTYPE</div>
+
+<div class="wrap">
+<div class="device">
+<div class="notch"></div>
+
+<div class="vp">
+
+  <!-- STATUS BAR -->
+  <div class="sb" id="sb">
+    <span class="sb-time">9:41</span>
+    <span class="sb-icons">●●●</span>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="nav" id="nav">
+    <button class="nb act" id="nb-home" onclick="gomain('home')">
+      <div class="nb-icon"><svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1v-9.5z"/><path d="M9 21V12h6v9"/></svg></div>
+      <span class="nb-lbl">home</span>
+    </button>
+    <button class="nb" id="nb-time" onclick="gomain('time')">
+      <div class="nb-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 3.5"/></svg></div>
+      <span class="nb-lbl">my time</span>
+    </button>
+    <button class="nb" id="nb-honest" onclick="gomain('honest')">
+      <div class="nb-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <span class="nb-lbl">honest?</span>
+    </button>
+  </nav>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  S-SPLASH                        ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc dark show" id="sc-splash">
+    <div class="bd" style="padding:60px 28px 40px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-md);margin-bottom:16px">YOU WERE INVITED BY PRIYA M.</div>
+      <div class="lora" style="font-size:36px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:14px">A social app that wants you to use it less.</div>
+      <div style="font-size:14px;color:#8a9a94;line-height:1.7;margin-bottom:36px">No algorithm. No ads. No infinite scroll. Just the people you know, posting when they have something to say.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:36px">
+        <span style="font-size:11px;color:#2D5A47;border:1px solid #1D3A28;padding:4px 12px;border-radius:20px">no ads</span>
+        <span style="font-size:11px;color:#2D5A47;border:1px solid #1D3A28;padding:4px 12px;border-radius:20px">subscription only</span>
+        <span style="font-size:11px;color:#2D5A47;border:1px solid #1D3A28;padding:4px 12px;border-radius:20px">30-day free trial</span>
+      </div>
+    </div>
+    <div class="ft" style="background:var(--dark);border-top:1px solid #1D3A28">
+      <button class="btn btn-p" onclick="goto('sc-ob1')">accept invite</button>
+      <button class="btn" style="background:rgba(255,255,255,.07);border:1.5px solid #2a3a30;color:#8a9a94" onclick="goto('sc-what')">what is this?</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  S-WHAT IS THIS                  ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc dark" id="sc-what">
+    <div class="hd dark" style="padding:54px 20px 12px;display:flex;align-items:center;gap:12px">
+      <button class="back-btn" style="background:rgba(255,255,255,.1);border-color:#2a3a30;color:#7ecfb3" onclick="goback()">‹</button>
+      <span class="lora" style="font-size:18px;font-weight:700;color:#fff">how it works</span>
+    </div>
+    <div class="bd" style="padding:8px 24px 40px">
+      <div style="background:#162820;border:1px solid #1D3A28;border-radius:16px;padding:18px;margin-bottom:12px">
+        <div class="t-label" style="color:var(--teal-md);margin-bottom:8px">the core idea</div>
+        <div class="lora" style="font-size:17px;font-weight:700;color:#fff;margin-bottom:8px;line-height:1.35">Most apps sell your attention. We don't.</div>
+        <div style="font-size:13px;color:#8a9a94;line-height:1.7">Social media platforms earn money by selling ads. Every minute you spend anxious and scrolling is revenue for them. The manipulation is not a bug — it is the business model.</div>
+      </div>
+      <div style="background:#162820;border:1px solid #1D3A28;border-radius:16px;padding:18px;margin-bottom:12px">
+        <div class="t-label" style="color:var(--teal-md);margin-bottom:12px">what we do instead</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:12px">
+            <div style="width:30px;height:30px;border-radius:50%;background:#1D3A28;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="#5DCAA5" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px">subscription, not ads</div><div style="font-size:12px;color:#8a9a94;line-height:1.5">£6/month. We make money when you find this useful — not when you can't stop using it.</div></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="width:30px;height:30px;border-radius:50%;background:#1D3A28;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#5DCAA5" stroke-width="1.5"/><path d="M7 4v3l2 2" stroke="#5DCAA5" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px">the feed ends</div><div style="font-size:12px;color:#8a9a94;line-height:1.5">No infinite scroll. When you've seen everything, a screen says "you're caught up" and helps you leave.</div></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="width:30px;height:30px;border-radius:50%;background:#1D3A28;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1l1.5 3 3.5.5-2.5 2.5.5 3.5L7 9l-3 1.5.5-3.5L2 4.5l3.5-.5z" stroke="#5DCAA5" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px">one notification a day</div><div style="font-size:12px;color:#8a9a94;line-height:1.5">A digest at a time you chose. No slot-machine pings designed to interrupt your day.</div></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="width:30px;height:30px;border-radius:50%;background:#1D3A28;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 13s6-3 6-7.5V2.5L7 1 1 2.5V5.5C1 10 7 13 7 13z" stroke="#5DCAA5" stroke-width="1.3"/></svg>
+            </div>
+            <div><div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px">your data stays yours</div><div style="font-size:12px;color:#8a9a94;line-height:1.5">We never sell it. Export everything or delete your account in one tap.</div></div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#162820;border:1px solid #1D3A28;border-radius:16px;padding:18px">
+        <div style="font-size:13px;color:#8a9a94;line-height:1.7;font-style:italic">"If this doesn't feel different from other apps in 30 days, please don't subscribe. We'd rather you left happy than stayed resentful."</div>
+        <div style="font-size:11px;color:#3D5A47;margin-top:6px">— the founders</div>
+      </div>
+    </div>
+    <div class="ft" style="background:var(--dark);border-top:1px solid #1D3A28">
+      <button class="btn btn-p" onclick="goto('sc-ob1')">accept invite</button>
+      <button class="btn" style="background:rgba(255,255,255,.07);border:1.5px solid #2a3a30;color:#8a9a94" onclick="goback()">go back</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  OB1 — NAME                      ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-ob1">
+    <div class="bd" style="padding:54px 24px 16px">
+      <div class="dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="t-label" style="margin-bottom:6px">step 1 of 5</div>
+      <div class="lora" style="font-size:28px;font-weight:700;color:var(--dark);margin-bottom:8px;line-height:1.3">what should we call you?</div>
+      <div class="t-sub" style="margin-bottom:24px">Just your name. No birthday, phone, or contact sync.</div>
+      <input type="text" placeholder="first name" style="width:100%;padding:14px;border:1.5px solid var(--border);border-radius:14px;font-size:15px;font-family:inherit;color:var(--dark);background:var(--white);outline:none;margin-bottom:10px;display:block">
+      <input type="text" placeholder="last name (optional)" style="width:100%;padding:14px;border:1.5px solid var(--border);border-radius:14px;font-size:15px;font-family:inherit;color:var(--dark);background:var(--white);outline:none;display:block">
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">You can add a photo later — or never.</div>
+    </div>
+    <div class="ft">
+      <button class="btn btn-p" onclick="goto('sc-ob2')">continue</button>
+      <button class="btn btn-g" onclick="goback()">back</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  OB2 — INTENTION                 ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-ob2">
+    <div class="bd" style="padding:54px 24px 16px">
+      <div class="dots"><div class="dot"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="t-label" style="margin-bottom:6px">step 2 of 5</div>
+      <div class="lora" style="font-size:28px;font-weight:700;color:var(--dark);margin-bottom:8px;line-height:1.3">why do you want to use this?</div>
+      <div class="t-sub" style="margin-bottom:22px">We'll shape your experience around your answer.</div>
+      <button class="choice" onclick="pick(this)">keep up with close friends &amp; family</button>
+      <button class="choice" onclick="pick(this)">share things I'm making or thinking about</button>
+      <button class="choice" onclick="pick(this)">spend less time on other social apps</button>
+      <button class="choice" onclick="pick(this)">something else</button>
+    </div>
+    <div class="ft">
+      <button class="btn btn-p" onclick="goto('sc-ob3')">continue</button>
+      <button class="btn btn-g" onclick="goback()">back</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  OB3 — TIME LIMIT                ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-ob3">
+    <div class="bd" style="padding:54px 24px 16px">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="t-label" style="margin-bottom:6px">step 3 of 5</div>
+      <div class="lora" style="font-size:28px;font-weight:700;color:var(--dark);margin-bottom:8px;line-height:1.3">how much time feels right?</div>
+      <div class="t-sub" style="margin-bottom:20px">Your number. No alarm, no hard stop.</div>
+      <div style="text-align:center;padding:16px 0 8px">
+        <div class="lim-n" id="ob3-n">20</div>
+        <div style="font-size:14px;color:var(--muted)">minutes per day</div>
+      </div>
+      <input type="range" min="5" max="90" value="20" step="5" oninput="document.getElementById('ob3-n').textContent=this.value">
+      <div class="qp" style="margin-top:14px">
+        <button class="qb" onclick="setOb3(10,this)">10 min</button>
+        <button class="qb on" onclick="setOb3(20,this)">20 min</button>
+        <button class="qb" onclick="setOb3(30,this)">30 min</button>
+        <button class="qb" onclick="setOb3(45,this)">45 min</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:8px 4px 0">We'll never judge you for going over it.</div>
+    </div>
+    <div class="ft">
+      <button class="btn btn-p" onclick="goto('sc-ob4')">that feels right</button>
+      <button class="btn btn-g" onclick="goback()">back</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  OB4 — TRIAL                     ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-ob4">
+    <div class="bd" style="padding:54px 24px 16px">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot on"></div><div class="dot"></div></div>
+      <div class="t-label" style="margin-bottom:6px">step 4 of 5</div>
+      <div class="lora" style="font-size:28px;font-weight:700;color:var(--dark);margin-bottom:8px;line-height:1.3">30 days, no card needed.</div>
+      <div class="t-sub" style="margin-bottom:22px">If this doesn't feel different, please don't subscribe.</div>
+      <div style="background:var(--teal-lt);border-radius:14px;padding:16px">
+        <div class="t-label" style="margin-bottom:10px">after your trial</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:13px;color:var(--teal-dk)">monthly</span>
+          <span style="font-size:13px;font-weight:700;color:var(--teal-dk)">£6 / month</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:13px;color:var(--teal-dk)">annual</span>
+          <span style="font-size:13px;font-weight:700;color:var(--teal-dk)">£54 / year</span>
+        </div>
+      </div>
+    </div>
+    <div class="ft">
+      <button class="btn btn-p" onclick="goto('sc-ob5')">start my trial</button>
+      <button class="btn btn-g" onclick="goback()">back</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  OB5 — WELCOME                   ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-ob5">
+    <div class="bd" style="padding:80px 28px 40px;display:flex;flex-direction:column;align-items:center;text-align:center">
+      <div style="width:72px;height:72px;border-radius:50%;background:var(--teal-lt);display:flex;align-items:center;justify-content:center;margin-bottom:20px">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M5 16l8 8L27 8" stroke="#1D9E75" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="lora" style="font-size:32px;font-weight:700;color:var(--dark);margin-bottom:10px">you're in</div>
+      <div class="t-sub" style="margin-bottom:24px">Priya and 2 others are already here. Your 30-day trial starts now — no card needed.</div>
+      <div style="background:var(--off);border-radius:14px;padding:14px 16px;text-align:left;width:100%">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">a note</div>
+        <div style="font-size:13px;color:var(--slate);line-height:1.6">If this doesn't feel different in 30 days, please don't subscribe. We'd rather you left happy than stayed resentful.</div>
+      </div>
+    </div>
+    <div class="ft">
+      <button class="btn btn-p" onclick="gomain('home')">go to your feed</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  HOME FEED                       ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-home">
+    <div class="hd">
+      <div style="padding:54px 20px 8px;display:flex;justify-content:space-between;align-items:center">
+        <div class="t-page">home</div>
+        <span class="pill pill-t" style="cursor:pointer;font-size:12px" onclick="gomain('time')">18 min today</span>
+      </div>
+      <div style="margin:0 20px 10px;background:var(--teal-lt);border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="gomain('time')">
+        <span style="font-size:12px;color:var(--teal-dk)">you've been here 18 min — limit is 20 min</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="#1D9E75" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+    <div class="bd" style="padding-bottom:90px">
+      <!-- POST 1 -->
+      <div class="card" style="margin:8px 20px 12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="av" style="background:var(--teal-lt);color:var(--teal)">AR</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--dark)">Anya R.</div><div style="font-size:11px;color:var(--muted)">2 hours ago</div></div>
+          <span class="pill pill-t">no ads</span>
+        </div>
+        <div style="font-size:13px;color:var(--slate);line-height:1.6;margin-bottom:10px">Finally finished the ceramics piece I started in January. Took way longer than expected but here it is.</div>
+        <div style="background:var(--off);border-radius:10px;height:68px;display:flex;align-items:center;justify-content:center;margin-bottom:10px"><span style="font-size:11px;color:var(--muted)">photo</span></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-g btn-sm">nice work</button>
+          <button class="btn btn-g btn-sm">reply</button>
+          <span style="margin-left:auto;font-size:11px;color:var(--muted);align-self:center">12 reactions</span>
+        </div>
+      </div>
+      <!-- POST 2 -->
+      <div class="card" style="margin:0 20px 12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="av" style="background:var(--amber-lt);color:var(--amber)">JM</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--dark)">Jo M.</div><div style="font-size:11px;color:var(--muted)">yesterday</div></div>
+          <span class="pill pill-a">ranked</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">shown because 4 mutual friends engaged</div>
+        <div style="font-size:13px;color:var(--slate);line-height:1.6;margin-bottom:10px">This article changed how I think about decision fatigue. Worth 10 minutes.</div>
+        <div style="display:flex;gap:8px"><button class="btn btn-g btn-sm">read</button><button class="btn btn-g btn-sm">reply</button></div>
+      </div>
+      <!-- POST 3 -->
+      <div class="card" style="margin:0 20px 12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="av" style="background:#E6F1FB;color:#378ADD">KL</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--dark)">Kiran L.</div><div style="font-size:11px;color:var(--muted)">4 hours ago</div></div>
+          <span class="pill pill-t">no ads</span>
+        </div>
+        <div style="font-size:13px;color:var(--slate);line-height:1.6;margin-bottom:10px">Spent the morning in the garden. Slow and good.</div>
+        <div style="display:flex;gap:8px"><button class="btn btn-g btn-sm">nice</button><button class="btn btn-g btn-sm">reply</button></div>
+      </div>
+      <!-- END CTA -->
+      <div style="text-align:center;padding:8px 20px 20px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">you're caught up with your 24 connections</div>
+        <button class="btn btn-p" onclick="goto('sc-endfeed')">see end of feed →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  END OF FEED                     ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-endfeed">
+    <div class="hd">
+      <div class="top-bar">
+        <button class="back-btn" onclick="goback()">‹</button>
+        <span class="lora" style="font-size:18px;font-weight:700;color:var(--dark)">end of feed</span>
+      </div>
+    </div>
+    <div class="bd" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:20px 28px 40px">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--teal-lt);display:flex;align-items:center;justify-content:center;margin-bottom:18px">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="#1D9E75" stroke-width="2"/><path d="M14 9v5l3.5 3.5" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="lora" style="font-size:24px;font-weight:700;color:var(--dark);margin-bottom:8px">you're caught up</div>
+      <div class="t-sub" style="margin-bottom:8px">Everything from your 24 people since your last visit. You've been here 14 min.</div>
+      <div style="background:var(--off);border-radius:20px;padding:7px 16px;font-size:12px;color:var(--muted);margin-bottom:28px">next posts appear tomorrow morning</div>
+      <div style="width:100%;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:10px;padding:12px 14px;background:#fff8f8;border:1px solid #ffd0d0;border-radius:12px;align-items:center">
+          <span style="color:var(--red);font-weight:700">✕</span>
+          <span style="font-size:12px;color:#7A2020">no content tray — the ending is the ending</span>
+        </div>
+        <div style="display:flex;gap:10px;padding:12px 14px;background:#fff8f8;border:1px solid #ffd0d0;border-radius:12px;align-items:center">
+          <span style="color:var(--red);font-weight:700">✕</span>
+          <span style="font-size:12px;color:#7A2020">no pull-to-refresh slot machine</span>
+        </div>
+        <button class="btn btn-p" onclick="goback()">← leave</button>
+        <button class="btn btn-g" onclick="goback()">write something</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  MY TIME                         ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-time">
+    <div class="hd" style="padding:54px 20px 0">
+      <div class="t-page" style="margin-bottom:12px">my time</div>
+      <div class="ttabs">
+        <button class="ttab on" id="tt-d" onclick="setTab('d')">daily</button>
+        <button class="ttab" id="tt-w" onclick="setTab('w')">weekly</button>
+        <button class="ttab" id="tt-m" onclick="setTab('m')">monthly</button>
+      </div>
+    </div>
+    <div class="bd" style="padding-bottom:90px">
+
+      <!-- DAILY -->
+      <div id="tv-d">
+        <div style="padding:6px 20px 12px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">thursday, 17 apr</div>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span class="bign">58</span>
+            <span style="font-size:14px;color:var(--muted)">min today</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin:4px 0">limit: 20 min</div>
+          <div class="prog"><div class="prog-u" style="width:34%"></div><div class="prog-o" style="width:65%"></div></div>
+          <div style="font-size:12px;color:#A32D2D">38 min over your limit</div>
+        </div>
+        <div class="divider"></div>
+        <div style="padding:12px 20px">
+          <div style="font-size:13px;font-weight:600;color:var(--dark);margin-bottom:10px">today's sessions</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="card" style="display:flex;justify-content:space-between;padding:10px 14px;margin-bottom:0"><span style="font-size:13px;color:var(--slate)">8:42 am</span><span style="font-size:13px;font-weight:600">12 min</span></div>
+            <div class="card" style="display:flex;justify-content:space-between;padding:10px 14px;margin-bottom:0"><span style="font-size:13px;color:var(--slate)">12:15 pm</span><span style="font-size:13px;font-weight:600">9 min</span></div>
+            <div class="card" style="display:flex;justify-content:space-between;padding:10px 14px;margin-bottom:0"><span style="font-size:13px;color:var(--slate)">3:08 pm</span><span style="font-size:13px;font-weight:600">18 min</span></div>
+            <div class="card" style="display:flex;justify-content:space-between;padding:10px 14px;margin-bottom:0"><span style="font-size:13px;color:var(--slate)">7:44 pm</span><span style="font-size:13px;font-weight:600">19 min</span></div>
+          </div>
+        </div>
+        <div style="background:var(--teal-lt);border-radius:14px;padding:14px 16px;margin:0 20px 14px">
+          <div style="font-size:13px;color:var(--teal-dk);line-height:1.6">No judgment — that's just the number. You read 18 posts, mostly from people you follow closely.</div>
+        </div>
+        <div style="padding:0 20px"><button class="btn btn-g" onclick="goto('sc-limit')">adjust tomorrow's limit?</button></div>
+      </div>
+
+      <!-- WEEKLY -->
+      <div id="tv-w" style="display:none">
+        <div style="padding:6px 20px 0;font-size:12px;color:var(--muted)">week of 14–20 apr</div>
+        <div class="bars" style="margin-top:12px">
+          <div class="bc"><div class="bar" style="height:38px;background:#B5D4F4"></div><div class="bl">M</div></div>
+          <div class="bc"><div class="bar" style="height:22px;background:#B5D4F4"></div><div class="bl">T</div></div>
+          <div class="bc"><div class="bar" style="height:88px;background:#F09595"></div><div class="bl ov">W</div></div>
+          <div class="bc"><div class="bar" style="height:78px;background:#F09595"></div><div class="bl ov">T</div></div>
+          <div class="bc"><div class="bar" style="height:40px;background:#B5D4F4"></div><div class="bl">F</div></div>
+          <div class="bc"><div class="bar" style="height:13px;background:#B5D4F4"></div><div class="bl">S</div></div>
+          <div class="bc"><div class="bar" style="height:3px;background:#ddd"></div><div class="bl">S</div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:2px 20px 12px;font-size:10px;color:var(--muted)">
+          <span>0</span><span style="color:var(--teal)">— 20 min limit</span><span>60 min</span>
+        </div>
+        <div class="sgrid">
+          <div class="sbox"><div class="sv">2h 14m</div><div class="sl">total</div></div>
+          <div class="sbox"><div class="sv">19 min</div><div class="sl">daily avg</div></div>
+          <div class="sbox"><div class="sv">5/7</div><div class="sl">days under</div></div>
+          <div class="sbox"><div class="sv">31</div><div class="sl">posts read</div></div>
+        </div>
+        <div class="divider"></div>
+        <div style="padding:12px 20px;font-size:13px;font-weight:600;color:var(--dark)">by day</div>
+        <div style="margin:0 20px;border:1px solid var(--border);border-radius:14px;overflow:hidden">
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Mon</div><div style="font-size:11px;color:var(--muted)">16 min</div></div><span class="pill pill-t">under</span></div>
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Tue</div><div style="font-size:11px;color:var(--muted)">8 min</div></div><span class="pill pill-t">under</span></div>
+          <div class="wr bad"><div><div style="font-size:13px;font-weight:500">Wed</div><div style="font-size:11px;color:#A32D2D">58 min · ×2.9</div></div><span class="pill pill-r">over</span></div>
+          <div class="wr bad"><div><div style="font-size:13px;font-weight:500">Thu</div><div style="font-size:11px;color:#A32D2D">42 min · ×2.1</div></div><span class="pill pill-r">over</span></div>
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Fri</div><div style="font-size:11px;color:var(--muted)">19 min</div></div><span class="pill pill-t">under</span></div>
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Sat</div><div style="font-size:11px;color:var(--muted)">5 min</div></div><span class="pill pill-t">under</span></div>
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Sun</div><div style="font-size:11px;color:var(--muted)">—</div></div><span style="font-size:11px;color:var(--muted)">no opens</span></div>
+        </div>
+        <div style="background:var(--teal-lt);border-radius:14px;padding:14px 16px;margin:12px 20px">
+          <div style="font-size:13px;color:var(--teal-dk);line-height:1.6">Wednesday was your longest day — opened 4 times. The rest of the week was within your limit. Average 19 min, just under your 20 min goal.</div>
+        </div>
+      </div>
+
+      <!-- MONTHLY -->
+      <div id="tv-m" style="display:none">
+        <div style="padding:6px 20px 0;font-size:12px;color:var(--muted)">april 2026</div>
+        <div class="bars" style="margin-top:12px">
+          <div class="bc"><div class="bar" style="height:50px;background:#B5D4F4"></div><div class="bl">wk 1</div></div>
+          <div class="bc"><div class="bar" style="height:34px;background:#B5D4F4"></div><div class="bl">wk 2</div></div>
+          <div class="bc"><div class="bar" style="height:88px;background:#F09595"></div><div class="bl ov">wk 3</div></div>
+          <div class="bc"><div class="bar" style="height:24px;background:#B5D4F4"></div><div class="bl">wk 4</div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:2px 20px 12px;font-size:10px;color:var(--muted)">
+          <span>0</span><span style="color:var(--teal)">— 20 min limit</span><span>avg/day</span>
+        </div>
+        <div class="sgrid">
+          <div class="sbox"><div class="sv">9h 22m</div><div class="sl">total</div></div>
+          <div class="sbox"><div class="sv">17 min</div><div class="sl">daily avg</div></div>
+          <div class="sbox"><div class="sv">22/30</div><div class="sl">days under</div></div>
+          <div class="sbox"><div class="sv">128</div><div class="sl">posts read</div></div>
+        </div>
+        <div class="divider"></div>
+        <div style="padding:12px 20px;font-size:13px;font-weight:600;color:var(--dark)">by week</div>
+        <div style="margin:0 20px;border:1px solid var(--border);border-radius:14px;overflow:hidden">
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Apr 1–7</div><div style="font-size:11px;color:var(--muted)">24 min avg · 5/7 under</div></div><span style="font-size:13px;font-weight:600">2h 34m</span></div>
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Apr 8–14</div><div style="font-size:11px;color:var(--muted)">16 min avg · 7/7 under</div></div><span style="font-size:13px;font-weight:600">1h 52m</span></div>
+          <div class="wr bad"><div><div style="font-size:13px;font-weight:500">Apr 15–21</div><div style="font-size:11px;color:#A32D2D">31 min avg · 3/7 over</div></div><span style="font-size:13px;font-weight:600;color:#A32D2D">3h 41m</span></div>
+          <div class="wr"><div><div style="font-size:13px;font-weight:500">Apr 22–28</div><div style="font-size:11px;color:var(--muted)">14 min avg · 7/7 under</div></div><span style="font-size:13px;font-weight:600">1h 36m</span></div>
+        </div>
+        <div style="background:var(--teal-lt);border-radius:14px;padding:14px 16px;margin:12px 20px">
+          <div style="font-size:13px;color:var(--teal-dk);line-height:1.6">Week 3 was above your limit — average jumped to 31 min/day. The other three weeks were all under 20 min. Monthly average of 17 min is within your goal.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  HONEST?                         ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-honest">
+    <div class="hd" style="padding:54px 20px 12px">
+      <div class="t-page" style="margin-bottom:2px">honest?</div>
+      <div class="t-sub">here's exactly what we do and don't do</div>
+    </div>
+    <div class="bd" style="padding:8px 0 90px">
+      <div style="padding:0 20px">
+        <div class="t-label" style="margin:8px 0">we do this</div>
+        <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Show why each post appeared</span><div class="chk chk-y">✓</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Tell you your real usage honestly</span><div class="chk chk-y">✓</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Export all your data, any time</span><div class="chk chk-y">✓</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">One-tap cancellation</span><div class="chk chk-y">✓</div></div>
+        </div>
+        <div class="t-label red" style="margin-bottom:8px">we don't do this</div>
+        <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Infinite scroll — the feed ends</span><div class="chk chk-n">✕</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Sell your attention to advertisers</span><div class="chk chk-n">✕</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Variable reward notifications</span><div class="chk chk-n">✕</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Guilt nudges or streaks</span><div class="chk chk-n">✕</div></div>
+          <div class="row" style="padding:12px 16px"><span style="font-size:13px">Sell or share your data</span><div class="chk chk-n">✕</div></div>
+        </div>
+        <div class="t-label" style="margin-bottom:8px">settings</div>
+        <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden">
+          <div class="row" style="padding:12px 16px;cursor:pointer" onclick="goto('sc-notifs')">
+            <div><div style="font-size:13px;font-weight:600">notifications</div><div style="font-size:11px;color:var(--muted)">daily digest at 6:00 PM</div></div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#8a9a94" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <div class="row" style="padding:12px 16px;cursor:pointer" onclick="goto('sc-pricing')">
+            <div><div style="font-size:13px;font-weight:600">pricing</div><div style="font-size:11px;color:var(--muted)">30-day trial · no card yet</div></div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#8a9a94" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  NOTIFICATIONS                   ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-notifs">
+    <div class="hd">
+      <div class="top-bar">
+        <button class="back-btn" onclick="goback()">‹</button>
+        <span class="lora" style="font-size:18px;font-weight:700;color:var(--dark)">notifications</span>
+      </div>
+    </div>
+    <div class="bd" style="padding:4px 20px 50px">
+      <div class="t-sub" style="margin-bottom:14px">you control all of this</div>
+
+      <!-- TIME PICKER -->
+      <div class="t-label" style="margin-bottom:8px">digest time</div>
+      <div class="card" style="margin-bottom:6px">
+        <div style="font-size:13px;font-weight:500;color:var(--dark);margin-bottom:14px">send my daily digest at</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+          <!-- HOUR drum -->
+          <div class="drum-wrap">
+            <div class="drum-fade-top"></div>
+            <div class="drum-fade-bot"></div>
+            <div class="drum-hl"></div>
+            <div class="drum-inner" id="drum-h"></div>
+          </div>
+          <span style="font-size:26px;font-weight:700;color:var(--dark);padding-bottom:4px">:</span>
+          <!-- MIN drum -->
+          <div class="drum-wrap">
+            <div class="drum-fade-top"></div>
+            <div class="drum-fade-bot"></div>
+            <div class="drum-hl"></div>
+            <div class="drum-inner" id="drum-m"></div>
+          </div>
+          <!-- AM/PM -->
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button class="ampm-btn" id="ap-am" onclick="setAmpm('AM')">AM</button>
+            <button class="ampm-btn on" id="ap-pm" onclick="setAmpm('PM')">PM</button>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)" id="time-prev">
+          digest will arrive at <span style="color:var(--teal);font-weight:600">6:00 PM</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:16px">one notification per day — nothing else</div>
+
+      <div class="t-label" style="margin-bottom:8px">sends a notification</div>
+      <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Direct replies to your posts</span><div class="chk chk-y">✓</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Direct messages</span><div class="chk chk-y">✓</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Posts from flagged contacts</span><div class="chk chk-y">✓</div></div>
+      </div>
+      <div class="t-label red" style="margin-bottom:8px">never sends</div>
+      <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden">
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Like count thresholds</span><div class="chk chk-n">✕</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">"You haven't posted in a while"</span><div class="chk chk-n">✕</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Trending / FOMO bait</span><div class="chk chk-n">✕</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Variable-reward timing</span><div class="chk chk-n">✕</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  LIMIT ADJUST                    ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-limit">
+    <div class="hd">
+      <div class="top-bar">
+        <button class="back-btn" onclick="goback()">‹</button>
+        <span class="lora" style="font-size:18px;font-weight:700;color:var(--dark)">adjust your limit</span>
+      </div>
+    </div>
+    <div class="bd" style="padding:4px 20px 40px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">your last 7 days</div>
+      <div class="bars" style="height:80px;margin:0 0 4px">
+        <div class="bc"><div class="bar" style="height:30px;background:#B5D4F4"></div><div class="bl">M</div></div>
+        <div class="bc"><div class="bar" style="height:17px;background:#B5D4F4"></div><div class="bl">T</div></div>
+        <div class="bc"><div class="bar" style="height:70px;background:#F09595"></div><div class="bl ov">W</div></div>
+        <div class="bc"><div class="bar" style="height:62px;background:#F09595"></div><div class="bl ov">T</div></div>
+        <div class="bc"><div class="bar" style="height:35px;background:#B5D4F4"></div><div class="bl">F</div></div>
+        <div class="bc"><div class="bar" style="height:10px;background:#B5D4F4"></div><div class="bl">S</div></div>
+        <div class="bc"><div class="bar" style="height:2px;background:#ddd"></div><div class="bl">S</div></div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--muted)">your recent average</div>
+        <div style="font-size:20px;font-weight:700;color:var(--dark)">32 min / day</div>
+      </div>
+      <div style="text-align:center;padding:12px 0 6px">
+        <div class="lim-n" id="lim-n">35</div>
+        <div style="font-size:13px;color:var(--muted)">min / day · starts tomorrow</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px" id="lim-hint">15 min more than your current limit</div>
+      <input type="range" min="5" max="90" value="35" step="5" id="lim-sl" oninput="updLim(this.value)">
+      <div class="qp" style="margin-top:12px">
+        <button class="qb" onclick="setLim(15,this)">15 min</button>
+        <button class="qb" onclick="setLim(20,this)">20 min</button>
+        <button class="qb" onclick="setLim(30,this)">30 min</button>
+        <button class="qb on" onclick="setLim(35,this)">35 min</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+        <button class="btn btn-p" onclick="goto('sc-lconf')">save — starts tomorrow</button>
+        <button class="btn btn-g" onclick="goback()">keep current limit</button>
+        <button class="btn btn-g" style="color:var(--muted)" onclick="goto('sc-lconf')">remove limit entirely</button>
+      </div>
+      <div style="display:flex;gap:10px;padding:12px 14px;background:#fff8f8;border:1px solid #ffd0d0;border-radius:12px;margin-top:14px;align-items:center">
+        <span style="color:var(--red);font-weight:700;flex-shrink:0">✕</span>
+        <span style="font-size:12px;color:#7A2020;line-height:1.5">no friction — it's your limit, change it freely</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  LIMIT CONFIRM                   ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-lconf">
+    <div class="bd" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:90px 28px 40px">
+      <div style="width:68px;height:68px;border-radius:50%;background:var(--teal-lt);display:flex;align-items:center;justify-content:center;margin-bottom:20px">
+        <svg width="30" height="30" viewBox="0 0 30 30" fill="none"><path d="M5 15l7.5 7.5L25 7" stroke="#1D9E75" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="lora" style="font-size:28px;font-weight:700;color:var(--dark);margin-bottom:8px">limit updated to 35 min</div>
+      <div style="font-size:14px;color:var(--muted);margin-bottom:12px">starts tomorrow</div>
+      <div style="background:var(--off);border-radius:14px;padding:14px 16px;margin-bottom:32px;text-align:left">
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">Today's usage counts against your old 20 min limit. The new limit takes effect from tomorrow morning.</div>
+      </div>
+    </div>
+    <div class="ft">
+      <button class="btn btn-g" onclick="gomain('time')">back to my time</button>
+    </div>
+  </div>
+
+  <!-- ╔══════════════════════════════════╗
+       ║  PRICING                         ║
+       ╚══════════════════════════════════╝ -->
+  <div class="sc" id="sc-pricing">
+    <div class="hd">
+      <div class="top-bar">
+        <button class="back-btn" onclick="goback()">‹</button>
+        <span class="lora" style="font-size:18px;font-weight:700;color:var(--dark)">pricing</span>
+      </div>
+    </div>
+    <div class="bd" style="padding:4px 20px 50px">
+      <div class="lora" style="font-size:22px;font-weight:700;color:var(--dark);margin-bottom:6px">simple. one thing to buy.</div>
+      <div class="t-sub" style="margin-bottom:18px">No tiers designed to make the middle option look like a bargain.</div>
+      <div style="display:flex;gap:10px;margin-bottom:18px">
+        <div style="flex:1;border:1.5px solid var(--border);border-radius:16px;padding:16px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">monthly</div>
+          <div class="lora" style="font-size:30px;font-weight:700;color:var(--dark)">£6</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:14px">per month</div>
+          <button class="btn btn-g" style="padding:10px;font-size:13px">start trial</button>
+          <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px">no card required</div>
+        </div>
+        <div style="flex:1;border:2px solid var(--teal);border-radius:16px;padding:16px;position:relative">
+          <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--teal-lt);border:1.5px solid var(--teal);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;color:var(--teal);white-space:nowrap">saves £14/yr</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">annual</div>
+          <div class="lora" style="font-size:30px;font-weight:700;color:var(--dark)">£54</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:14px">£4.50/month</div>
+          <button class="btn btn-p" style="padding:10px;font-size:13px">start trial</button>
+          <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px">no card required</div>
+        </div>
+      </div>
+      <div class="t-label" style="margin-bottom:8px">what you get</div>
+      <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px">
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Chronological feed, no algorithm</span><div class="chk chk-y">✓</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Honest usage stats, no judgment</span><div class="chk chk-y">✓</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Notifications once/day, your time</span><div class="chk chk-y">✓</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Your data — exportable, never sold</span><div class="chk chk-y">✓</div></div>
+      </div>
+      <div class="t-label red" style="margin-bottom:8px">what you don't get</div>
+      <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Ads or promoted content</span><div class="chk chk-n">✕</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">Infinite scroll or streak mechanics</span><div class="chk chk-n">✕</div></div>
+        <div class="row" style="padding:11px 16px"><span style="font-size:13px">A 7-step cancellation flow</span><div class="chk chk-n">✕</div></div>
+      </div>
+      <div style="background:var(--off);border-radius:14px;padding:14px 16px">
+        <div style="font-size:13px;font-style:italic;color:var(--slate);line-height:1.7">"If it doesn't feel different, please cancel — we'd rather you left happy than stayed resentful." — founders</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /vp -->
+</div><!-- /device -->
+</div><!-- /wrap -->
+
+<script>
+// ── NAVIGATION ─────────────────────────────────────────────────────
+const MAIN = {home:'sc-home', time:'sc-time', honest:'sc-honest'};
+const NAV_IDS = new Set(['sc-home','sc-time','sc-honest']);
+let stack = [];
+
+function $(id){ return document.getElementById(id) }
+
+function showScreen(id) {
+  // Show target, hide all others properly
+  document.querySelectorAll('.sc').forEach(s => {
+    s.classList.remove('show','behind');
+  });
+  $(id).classList.add('show');
+}
+
+function goto(id) {
+  const cur = document.querySelector('.sc.show');
+  if (!cur || cur.id === id) return;
+  stack.push(cur.id);
+  // Slide current left
+  cur.classList.add('behind');
+  cur.classList.remove('show');
+  // Slide new one in from right
+  const next = $(id);
+  next.classList.add('show');
+  // Scroll body to top
+  const bd = next.querySelector('.bd');
+  if (bd) bd.scrollTop = 0;
+  syncNav(id);
+}
+
+function goback() {
+  if (!stack.length) return;
+  const cur = document.querySelector('.sc.show');
+  const prevId = stack.pop();
+  if (cur) {
+    cur.classList.remove('show','behind');
+    // Reset position after transition
+    setTimeout(() => { if (!cur.classList.contains('show')) cur.style.transform = ''; }, 320);
+  }
+  const prev = $(prevId);
+  prev.classList.remove('behind');
+  prev.classList.add('show');
+  syncNav(prevId);
+}
+
+function gomain(tab) {
+  const id = MAIN[tab];
+  document.querySelectorAll('.sc').forEach(s => s.classList.remove('show','behind'));
+  $(id).classList.add('show');
+  const bd = $(id).querySelector('.bd');
+  if (bd) bd.scrollTop = 0;
+  stack = [];
+  syncNav(id);
+}
+
+function syncNav(id) {
+  const nav = $('nav');
+  const sb  = $('sb');
+  if (NAV_IDS.has(id)) {
+    nav.classList.add('on');
+    $('nb-home').classList.toggle('act', id==='sc-home');
+    $('nb-time').classList.toggle('act', id==='sc-time');
+    $('nb-honest').classList.toggle('act', id==='sc-honest');
+  } else {
+    nav.classList.remove('on');
+  }
+  // Dark status bar for dark screens
+  sb.classList.toggle('sb-dark', id==='sc-splash' || id==='sc-what');
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────
+function pick(btn) {
+  btn.closest('.sc').querySelectorAll('.choice').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+function setOb3(v, btn) {
+  $('ob3-n').textContent = v;
+  btn.closest('.qp').querySelectorAll('.qb').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+function updLim(v) {
+  $('lim-n').textContent = v;
+  const d = v - 20;
+  $('lim-hint').textContent = d > 0 ? d+' min more than your current limit'
+    : d < 0 ? Math.abs(d)+' min less than your current limit'
+    : 'same as your current limit';
+  $('lim-sl').value = v;
+  document.querySelectorAll('#sc-limit .qb').forEach(b => b.classList.remove('on'));
+}
+
+function setLim(v, btn) {
+  updLim(v);
+  btn.closest('.qp').querySelectorAll('.qb').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+function setTab(t) {
+  ['d','w','m'].forEach(x => {
+    $('tv-'+x).style.display = x===t ? 'block' : 'none';
+    $('tt-'+x).classList.toggle('on', x===t);
+  });
+}
+
+// ── TIME DRUM PICKER ───────────────────────────────────────────────
+(function(){
+  const HOURS = [1,2,3,4,5,6,7,8,9,10,11,12];
+  const MINS  = ['00','05','10','15','20','25','30','35','40','45','50','55'];
+  const IH = 36; // item height px
+  let hIdx = 5; // 6
+  let mIdx = 6; // 00
+  let ap   = 'PM';
+
+  function render(id, items, selIdx) {
+    const el = $(id);
+    if (!el) return;
+    // Render selIdx-1, selIdx, selIdx+1 (wrap)
+    const n = items.length;
+    const rows = [-1,0,1].map(off => {
+      const i = (selIdx + off + n) % n;
+      const isSel = off === 0;
+      return `<div class="drum-item${isSel?' sel':''}">${items[i]}</div>`;
+    });
+    // Position: we show 3 rows (3*IH = 108px), container is 112px
+    // Top padding so the first item is centered in row 0, i.e. offset by IH from top
+    el.innerHTML = rows.join('');
+    el.style.top = IH+'px'; // first item starts 1 row down so selected is in middle
+  }
+
+  function attachDrum(id, getI, setI, items) {
+    const el = $(id);
+    if (!el) return;
+    let startY = null;
+
+    function onDown(y) { startY = y; }
+    function onMove(y) {
+      if (startY === null) return;
+      const dy = y - startY;
+      if (Math.abs(dy) >= IH * 0.6) {
+        const n = items.length;
+        let i = getI();
+        if (dy < 0) i = (i + 1) % n;   // drag up = next
+        else        i = (i - 1 + n) % n; // drag down = prev
+        setI(i);
+        render(id, items, i);
+        updatePreview();
+        startY = y;
+      }
+    }
+    function onUp() { startY = null; }
+
+    el.addEventListener('mousedown',  e => onDown(e.clientY));
+    el.addEventListener('mousemove',  e => onMove(e.clientY));
+    el.addEventListener('mouseup',    onUp);
+    el.addEventListener('touchstart', e => { e.preventDefault(); onDown(e.touches[0].clientY); }, {passive:false});
+    el.addEventListener('touchmove',  e => { e.preventDefault(); onMove(e.touches[0].clientY); }, {passive:false});
+    el.addEventListener('touchend',   onUp);
+  }
+
+  function updatePreview() {
+    const el = $('time-prev');
+    if (!el) return;
+    el.innerHTML = `digest will arrive at <span style="color:var(--teal);font-weight:600">${HOURS[hIdx]}:${MINS[mIdx]} ${ap}</span>`;
+  }
+
+  window.setAmpm = function(val) {
+    ap = val;
+    $('ap-am').classList.toggle('on', val==='AM');
+    $('ap-pm').classList.toggle('on', val==='PM');
+    updatePreview();
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    render('drum-h', HOURS, hIdx);
+    render('drum-m', MINS,  mIdx);
+    attachDrum('drum-h', ()=>hIdx, v=>{ hIdx=v; }, HOURS);
+    attachDrum('drum-m', ()=>mIdx, v=>{ mIdx=v; }, MINS);
+    updatePreview();
+  });
+})();
+</script>
+</body>
+</html>
